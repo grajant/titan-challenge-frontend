@@ -1,3 +1,5 @@
+'use client';
+
 import {
   IconButton,
   Paper,
@@ -11,9 +13,10 @@ import {
   Toolbar,
   Tooltip
 } from '@mui/material';
-import { SearchDoctorsApiResponse } from '@/app/lib/actions/searchDoctors';
 import { ChangeEvent, FC, useMemo, useState } from 'react';
 import FilterListIcon from '@mui/icons-material/FilterList';
+import { fetchDoctors, SearchDoctorsApiResponse } from '@/app/lib/data/fetchDoctors';
+import { LoadingButton } from '@mui/lab';
 
 type DoctorsTableProps = {
   searchedName: string;
@@ -40,21 +43,22 @@ const TableToolbar: FC<TableToolbarProps> = ({ searchedName }) => {
 };
 
 export const DoctorsTable: FC<DoctorsTableProps> = ({ data, searchedName }) => {
-  const { searchResults: rows } = data;
+  const { searchResults, hasMoreToFetch } = data;
 
-  // const [order, setOrder] = useState<Order>('asc');
-  // const [orderBy, setOrderBy] = useState<keyof Data>('calories');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [hasMoreToLoad, setHasMoreToLoad] = useState(hasMoreToFetch);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [rows, setRows] = useState(searchResults);
 
-  // const handleRequestSort = (
-  //   event: MouseEvent<unknown>,
-  //   property: keyof Data,
-  // ) => {
-  //   const isAsc = orderBy === property && order === 'asc';
-  //   setOrder(isAsc ? 'desc' : 'asc');
-  //   setOrderBy(property);
-  // };
+  const visibleRows = useMemo(
+    () =>
+      rows.slice(
+        page * rowsPerPage,
+        page * rowsPerPage + rowsPerPage,
+      ).toSorted((a, b) => b._score - a._score),
+    [rows, page, rowsPerPage],
+  );
 
   const handleChangePage = (event: unknown, newPage: number) => {
     setPage(newPage);
@@ -65,14 +69,21 @@ export const DoctorsTable: FC<DoctorsTableProps> = ({ data, searchedName }) => {
     setPage(0);
   };
 
-  const visibleRows = useMemo(
-    () =>
-      rows.slice(
-        page * rowsPerPage,
-        page * rowsPerPage + rowsPerPage,
-      ),
-    [page, rowsPerPage],
-  );
+  const handleLoadMoreClick = async () => {
+    setIsLoadingData(true);
+
+    const response = await fetchDoctors({
+      firstName: searchedName.split(' ')[0],
+      lastName: searchedName.split(' ')[1],
+      skip: rows.length.toString(),
+    });
+
+    setIsLoadingData(false);
+    if (response.status === 'failure') return;
+
+    setRows((prevState) => [...prevState, ...response.data.searchResults]);
+    setHasMoreToLoad(response.data.hasMoreToFetch);
+  };
 
   return (
     <Paper className="w-full">
@@ -82,43 +93,63 @@ export const DoctorsTable: FC<DoctorsTableProps> = ({ data, searchedName }) => {
         <Table sx={{ minWidth: 650 }} aria-label="Doctors search table">
           <TableHead>
             <TableRow>
-              <TableCell>Doctor name</TableCell>
-              <TableCell>Phone number</TableCell>
-              <TableCell>Address</TableCell>
-              <TableCell>City</TableCell>
-              <TableCell>State</TableCell>
-              <TableCell align="right">Specialty</TableCell>
+              <TableCell className="font-semibold">NPI</TableCell>
+              <TableCell className="font-semibold">Doctor name</TableCell>
+              <TableCell className="font-semibold">Phone number</TableCell>
+              <TableCell className="font-semibold">Address</TableCell>
+              <TableCell align="right" className="font-semibold">Specialty</TableCell>
+              <TableCell align="right" className="font-semibold">Score</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {visibleRows.map(({ _source: row }) => (
+            {visibleRows.map(({ _source: row, _score }) => (
               <TableRow
                 key={row.telephoneNumber}
                 sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
               >
                 <TableCell component="th" scope="row">
+                  <a
+                    href={`https://npiregistry.cms.hhs.gov/provider-view/${row.id}`}
+                    target="_blank"
+                    className="underline text-blue-400"
+                  >
+                    {row.id}
+                  </a>
+                </TableCell>
+                <TableCell component="th" scope="row">
                   {row.fullName}
                 </TableCell>
                 <TableCell>{row.telephoneNumber}</TableCell>
-                <TableCell>{row.address.street}</TableCell>
-                <TableCell>{row.address.city}</TableCell>
-                <TableCell>{row.address.state}</TableCell>
+                <TableCell>
+                  {row.address.street} <br/>
+                  <span className="italic text-xs">{row.address.city}, {row.address.state}</span>
+                </TableCell>
                 <TableCell align="right">{row.specialty}</TableCell>
+                <TableCell align="right">{_score.toFixed(3)}</TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </TableContainer>
 
-      <TablePagination
-        rowsPerPageOptions={[10, 25, 50]}
-        component="div"
-        count={rows.length}
-        rowsPerPage={rowsPerPage}
-        page={page}
-        onPageChange={handleChangePage}
-        onRowsPerPageChange={handleChangeRowsPerPage}
-      />
+      <div className="flex items-center pl-6">
+        {hasMoreToLoad
+          ? (<LoadingButton
+            variant="outlined" size="small" loading={isLoadingData}
+            onClick={handleLoadMoreClick}>Load more results</LoadingButton>)
+          : null
+        }
+        <TablePagination
+          className="flex-grow"
+          rowsPerPageOptions={[10, 25, 50]}
+          component="div"
+          count={rows.length}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={handleChangePage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+        />
+      </div>
     </Paper>
   );
 };

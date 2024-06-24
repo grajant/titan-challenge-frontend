@@ -1,6 +1,6 @@
 'use client';
 
-import { FormControlLabel, MenuItem, Switch, TextField, Typography } from '@mui/material';
+import { FormControlLabel, MenuItem, Switch, TextField } from '@mui/material';
 import states from '../us-states.json';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,7 +9,6 @@ import { useFormState, useFormStatus } from 'react-dom';
 import { searchDoctors } from '@/app/lib/actions/searchDoctors';
 import { FC, useState } from 'react';
 import { LoadingButton } from '@mui/lab';
-import { DoctorsTable } from '@/app/doctors/doctors-table';
 
 export default function Doctors() {
   const {
@@ -22,10 +21,10 @@ export default function Doctors() {
     resolver: zodResolver(doctorsFormSchema)
   });
 
-  const [state, submitAction] = useFormState(searchDoctors, { errors: {}, data: undefined, message: '' });
+  const [state, submitAction] = useFormState(searchDoctors, { errors: {}, message: '' });
   const [didSearch, setDidSearch] = useState<boolean>(false);
 
-  const { firstName, lastName, withState } = watch();
+  const { withState } = watch();
 
   return (
     <>
@@ -111,25 +110,18 @@ export default function Doctors() {
             />
           </div>
 
-          <SubmitButton didSearch={didSearch} onNewSearchClick={() => setDidSearch(false)}/>
-
+          <SubmitButton/>
 
           {state.errors && Object.keys(state.errors).length > 0
             ? <p className="text-red-500">Please check the form data</p> : null
           }
         </form>
       </section>
-
-      {
-        didSearch && <section className="pt-8">
-          {state.data ? <DoctorsTable data={state.data} searchedName={`${firstName} ${lastName}`}/> : null}
-        </section>
-      }
     </>
   );
 }
 
-const SubmitButton: FC<{ didSearch: boolean, onNewSearchClick: () => void }> = ({ didSearch, onNewSearchClick }) => {
+const SubmitButton: FC = () => {
   const { pending } = useFormStatus();
 
   return (
@@ -143,9 +135,6 @@ const SubmitButton: FC<{ didSearch: boolean, onNewSearchClick: () => void }> = (
       >
         Search
       </LoadingButton>
-      {didSearch && !pending &&
-        <Typography variant="caption" component="button" className="font-sans underline" onClick={onNewSearchClick}>New
-          search</Typography>}
     </div>
   );
 };
